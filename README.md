@@ -317,6 +317,7 @@
                 mpesaMessage.textContent = message;
                 mpesaMessage.className = `message-box ${type}`;
                 mpesaMessage.style.display = 'block';
+                // No auto-hide for payment messages, user needs to dismiss or see success/error
             }
 
             // M-Pesa Payment Logic
@@ -341,16 +342,18 @@
                 displayMessage("Initiating M-Pesa STK Push... Please wait.", "info");
 
                 // IMPORTANT: This URL has been updated with the one you provided.
-                const mpesaApiProxyUrl = 'https://script.google.com/macros/s/AKfycbzspFKGb236uK719ULkvro5GRS7kAKwZuFDl0fOWNU60qge6oJEzDwku-03v04Ih5PP/exec'; 
+                const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzspFKGb236uK719ULkvro5GRS7kAKwZuFDl0fOWNU60qge6oJEzDwku-03v04Ih5PP/exec'; 
                 
                 try {
-                    const response = await fetch(mpesaApiProxyUrl, {
+                    const response = await fetch(APPS_SCRIPT_WEB_APP_URL, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Accept': 'application/json' // Request JSON response
                         },
-                        mode: 'cors',
+                        // Add a 'type' field to help Apps Script differentiate requests
                         body: JSON.stringify({
+                            type: 'stk_push_initiate', // This helps Apps Script identify the request type
                             phoneNumber: formattedPhoneNumber,
                             amount: PRODUCT_PRICE,
                             productName: PRODUCT_NAME
@@ -358,23 +361,21 @@
                     });
 
                     if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('M-Pesa Proxy Fetch Error (Response Not OK):', response.status, response.statusText, errorText);
+                        const errorResponseText = await response.text();
+                        console.error('M-Pesa Proxy Fetch Error (Response Not OK):', response.status, response.statusText, errorResponseText);
                         displayMessage(`Payment initiation failed: ${response.statusText || 'Server Error'}. Please try again.`, "error");
-                        payNowBtn.disabled = false;
-                        payNowBtn.innerHTML = '<i class="fas fa-money-bill-wave mr-2"></i> Pay Now';
-                        return;
+                        return; // Stop execution here
                     }
 
                     const result = await response.json();
                     console.log('M-Pesa Proxy Response:', result);
 
                     if (result.success) {
-                        displayMessage(result.message, "success");
-                        // Optionally, you can hide the modal after a successful STK push initiation
-                        // setTimeout(hideModal, 5000);
+                        displayMessage("success", result.message || "STK Push sent successfully! Check your phone to complete the payment.");
+                        // Optionally, close modal after a short delay for success
+                        setTimeout(hideModal, 5000);
                     } else {
-                        displayMessage(`Payment initiation failed: ${result.message}`, "error");
+                        displayMessage("error", result.message || "Payment initiation failed. Please try again.");
                     }
 
                 } catch (error) {
